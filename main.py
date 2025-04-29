@@ -180,11 +180,11 @@ def main():
             conv_handler = ConversationHandler(
                 entry_points=[CommandHandler('start', start)],
                 states={
-                    SELECT_CAR: [MessageHandler(Filters.text & ~Filters.command, select_car)],
-                    SELECT_MODEL: [MessageHandler(Filters.text & ~Filters.command, select_model)],
-                    GET_MISSIONS: [MessageHandler(Filters.text & ~Filters.command, get_missions)],
-                    GET_NORMAL_HOURS: [MessageHandler(Filters.text & ~Filters.command, get_normal_hours)],
-                    GET_OVERTIME: [MessageHandler(Filters.text & ~Filters.command, get_overtime)],
+                    SELECT_CAR: [MessageHandler(filters.text & ~filters.command, select_car)],
+                    SELECT_MODEL: [MessageHandler(filters.text & ~filters.command, select_model)],
+                    GET_MISSIONS: [MessageHandler(filters.text & ~filters.command, get_missions)],
+                    GET_NORMAL_HOURS: [MessageHandler(filters.text & ~filters.command, get_normal_hours)],
+                    GET_OVERTIME: [MessageHandler(filters.text & ~filters.command, get_overtime)],
                 },
                 fallbacks=[CommandHandler('cancel', cancel)]
             )
