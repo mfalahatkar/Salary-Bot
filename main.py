@@ -1,5 +1,4 @@
 import os
-import warnings
 from telegram import Update, ReplyKeyboardMarkup
 from telegram.ext import (
     Application,
@@ -10,18 +9,17 @@ from telegram.ext import (
     ConversationHandler
 )
 
-# غیرفعال کردن هشدارهای خاص
-warnings.filterwarnings("ignore", message="python-telegram-bot is using upstream urllib3")
-
-# تنظیمات پایه
+# تنظیمات اولیه
 TOKEN = os.environ.get('TOKEN')
 if not TOKEN:
-    print("❌ خطا: توکن ربات تنظیم نشده است! لطفاً متغیر TOKEN را در تنظیمات Railway تنظیم کنید.")
+    print("❌ خطا: توکن ربات تنظیم نشده است!")
     exit(1)
 
-KM_PER_MISSION = 52
-PER_KM = 18524
+KM_PER_MISSION = 52  # کیلومتر هر ماموریت
+PER_KM = 18524  # نرخ هر کیلومتر (ریال)
+OVERTIME_MULTIPLIER = 1.4  # ضریب اضافه کار
 
+# ساختار داده‌ای حقوق خودروها (ریال)
 CAR_SALARIES = {
     "ساینا و تیبا": {
         "1395-1397": 511062,
@@ -41,9 +39,11 @@ CAR_SALARIES = {
     }
 }
 
+# مراحل گفتگو
 SELECT_CAR, SELECT_MODEL, GET_MISSIONS, GET_NORMAL_HOURS, GET_OVERTIME = range(5)
 
 async def start(update: Update, context: ContextTypes.DEFAULT_TYPE) -> int:
+    """شروع مکالمه و انتخاب خودرو"""
     car_types = list(CAR_SALARIES.keys())
     reply_keyboard = [car_types[i:i+2] for i in range(0, len(car_types), 2)]
     
@@ -54,6 +54,7 @@ async def start(update: Update, context: ContextTypes.DEFAULT_TYPE) -> int:
     return SELECT_CAR
 
 async def select_car(update: Update, context: ContextTypes.DEFAULT_TYPE) -> int:
+    """انتخاب مدل خودرو"""
     car_type = update.message.text
     if car_type not in CAR_SALARIES:
         await update.message.reply_text("⚠️ نوع خودرو نامعتبر است! لطفاً از کیبورد انتخاب کنید.")
@@ -71,6 +72,7 @@ async def select_car(update: Update, context: ContextTypes.DEFAULT_TYPE) -> int:
     return SELECT_MODEL
 
 async def select_model(update: Update, context: ContextTypes.DEFAULT_TYPE) -> int:
+    """دریافت تعداد ماموریت‌ها"""
     model = update.message.text
     car_type = context.user_data['car_type']
     
@@ -90,6 +92,7 @@ async def select_model(update: Update, context: ContextTypes.DEFAULT_TYPE) -> in
     return GET_MISSIONS
 
 async def get_missions(update: Update, context: ContextTypes.DEFAULT_TYPE) -> int:
+    """دریافت ساعت کار عادی"""
     try:
         missions = int(update.message.text)
         if missions < 0:
@@ -106,6 +109,7 @@ async def get_missions(update: Update, context: ContextTypes.DEFAULT_TYPE) -> in
         return GET_MISSIONS
 
 async def get_normal_hours(update: Update, context: ContextTypes.DEFAULT_TYPE) -> int:
+    """دریافت ساعت اضافه کار"""
     try:
         normal_hours = float(update.message.text)
         if normal_hours < 0:
@@ -122,6 +126,7 @@ async def get_normal_hours(update: Update, context: ContextTypes.DEFAULT_TYPE) -
         return GET_NORMAL_HOURS
 
 async def get_overtime(update: Update, context: ContextTypes.DEFAULT_TYPE) -> int:
+    """محاسبه و نمایش نتیجه نهایی"""
     try:
         overtime = float(update.message.text)
         if overtime < 0:
@@ -129,27 +134,39 @@ async def get_overtime(update: Update, context: ContextTypes.DEFAULT_TYPE) -> in
             return GET_OVERTIME
             
         data = context.user_data
+        
+        # محاسبه هزینه ماموریت‌ها
         mission_cost = data['missions'] * KM_PER_MISSION * PER_KM
+        
+        # محاسبه حقوق پایه
         normal_salary = data['normal_hours'] * data['hourly_wage']
-        overtime_salary = overtime * data['hourly_wage'] * 1.4
+        
+        # محاسبه اضافه کار
+        overtime_salary = overtime * data['hourly_wage'] * OVERTIME_MULTIPLIER
+        
+        # محاسبه مجموع
         total = mission_cost + normal_salary + overtime_salary
-
+        
+        # فرمت‌بندی اعداد با جداکننده هزارگان
+        def format_currency(amount):
+            return "{:,.0f}".format(amount).replace(",", "٬")
+        
         await update.message.reply_text(
-            f"📊 نتیجه محاسبات:\n\n"
-            f"🚗 اطلاعات خودرو:\n"
+            f"📊 **نتایج محاسبات حقوق**\n\n"
+            f"🚗 **مشخصات خودرو:**\n"
             f"• نوع: {data['car_type']}\n"
             f"• مدل: {data['model']}\n"
-            f"• حقوق ساعتی: {data['hourly_wage']:,} ریال\n\n"
-            f"📌 جزئیات محاسبه:\n"
+            f"• حقوق ساعتی: {format_currency(data['hourly_wage'])} ریال\n\n"
+            f"📝 **جزئیات محاسبه:**\n"
             f"• تعداد ماموریت: {data['missions']} بار\n"
             f"• کیلومتر هر ماموریت: {KM_PER_MISSION} کیلومتر\n"
-            f"• هزینه ماموریت: {mission_cost:,} ریال\n"
+            f"• هزینه ماموریت: {format_currency(mission_cost)} ریال\n"
             f"• ساعت کار عادی: {data['normal_hours']:.2f} ساعت\n"
-            f"• حقوق پایه: {normal_salary:,} ریال\n"
+            f"• حقوق پایه: {format_currency(normal_salary)} ریال\n"
             f"• ساعت اضافه کار: {overtime:.2f} ساعت\n"
-            f"• اضافه کار: {overtime_salary:,} ریال\n\n"
-            f"💰 مجموع حقوق: {total:,} ریال\n\n"
-            "برای محاسبه مجدد /start را بزنید."
+            f"• اضافه کار: {format_currency(overtime_salary)} ریال\n\n"
+            f"💰 **مجموع حقوق قابل پرداخت: {format_currency(total)} ریال**\n\n"
+            "برای محاسبه مجدد /start را ارسال کنید."
         )
         return ConversationHandler.END
     except ValueError:
@@ -157,10 +174,12 @@ async def get_overtime(update: Update, context: ContextTypes.DEFAULT_TYPE) -> in
         return GET_OVERTIME
 
 async def cancel(update: Update, context: ContextTypes.DEFAULT_TYPE) -> int:
+    """لغو عملیات"""
     await update.message.reply_text('عملیات لغو شد. برای شروع مجدد /start را بزنید.')
     return ConversationHandler.END
 
 def main():
+    """تنظیم و راه‌اندازی ربات"""
     application = Application.builder().token(TOKEN).build()
     
     conv_handler = ConversationHandler(
@@ -174,10 +193,14 @@ def main():
         },
         fallbacks=[CommandHandler('cancel', cancel)]
     )
-
+    
     application.add_handler(conv_handler)
+    
     print("✅ ربات فعال شد و آماده دریافت درخواست‌هاست!")
-    application.run_polling()
+    application.run_polling(
+        drop_pending_updates=True,
+        allowed_updates=Update.ALL_TYPES
+    )
 
 if __name__ == '__main__':
     main()
