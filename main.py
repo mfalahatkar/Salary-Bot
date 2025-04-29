@@ -1,7 +1,7 @@
 import os
 from telegram import Update, ReplyKeyboardMarkup
 from telegram.ext import (
-    Updater,
+    Application,
     CommandHandler,
     MessageHandler,
     filters,
