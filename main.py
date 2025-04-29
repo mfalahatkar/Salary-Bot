@@ -8,6 +8,26 @@ from telegram.ext import (
     CallbackContext,
     ConversationHandler
 )
+import warnings
+from telegram import Update
+from telegram.ext import Updater
+
+# غیرفعال کردن هشدارهای خاص
+warnings.filterwarnings("ignore", message="python-telegram-bot is using upstream urllib3")
+
+def main():
+    TOKEN = os.environ.get('TOKEN')
+    if not TOKEN:
+        print("❌ Error: Telegram token not found!")
+        return
+
+    updater = Updater(TOKEN)
+    print("✅ ربات با موفقیت فعال شد!")
+    updater.start_polling()
+    updater.idle()
+
+if __name__ == '__main__':
+    main()
 TOKEN = os.environ.get('TOKEN')
 if not TOKEN:
     print("❌ خطا: توکن ربات تنظیم نشده است! لطفاً متغیر TOKEN را در تنظیمات Railway تنظیم کنید.")
