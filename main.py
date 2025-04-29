@@ -1,7 +1,13 @@
 import os
 from telegram import Update, ReplyKeyboardMarkup
-from telegram.ext import Updater, CommandHandler, MessageHandler, Filters, CallbackContext, ConversationHandler
-
+from telegram.ext import (
+    Updater,
+    CommandHandler,
+    MessageHandler,
+    Filters,
+    CallbackContext,
+    ConversationHandler
+)
 TOKEN = os.environ.get('TOKEN')
 if not TOKEN:
     print("❌ خطا: توکن ربات تنظیم نشده است! لطفاً متغیر TOKEN را در تنظیمات Railway تنظیم کنید.")
