@@ -16,7 +16,13 @@ if not TOKEN:
     exit(1)
 
 KM_PER_MISSION = 52  # کیلومتر هر ماموریت
-PER_KM = 18524  # نرخ هر کیلومتر (ریال)
+PER_KM = 12596  # قیمت جدید هر کیلومتر
+
+MONTHS = [
+    "فروردین", "اردیبهشت", "خرداد", "تیر", "مرداد", "شهریور",
+    "مهر", "آبان", "آذر", "دی", "بهمن", "اسفند"
+]
+YEARS = ["1403", "1404"]
 
 # ساختار داده‌ای حقوق خودروها (ریال)
 CAR_SALARIES = {
@@ -39,9 +45,39 @@ CAR_SALARIES = {
 }
 
 # مراحل گفتگو
-SELECT_CAR, SELECT_MODEL, GET_MISSIONS, GET_NORMAL_HOURS, GET_HOURLY_MISSIONS = range(5)
+SELECT_MONTH, SELECT_YEAR, SELECT_CAR, SELECT_MODEL, GET_MISSIONS, GET_NORMAL_HOURS, GET_HOURLY_MISSIONS = range(7)
 
 async def start(update: Update, context: ContextTypes.DEFAULT_TYPE) -> int:
+    reply_keyboard = [MONTHS[i:i+3] for i in range(0, len(MONTHS), 3)]
+    await update.message.reply_text(
+        "📅 لطفاً ماه مورد نظر را انتخاب کنید:",
+        reply_markup=ReplyKeyboardMarkup(reply_keyboard, one_time_keyboard=True)
+    )
+    return SELECT_MONTH
+
+async def select_month(update: Update, context: ContextTypes.DEFAULT_TYPE) -> int:
+    month = update.message.text
+    if month not in MONTHS:
+        await update.message.reply_text("⚠️ ماه نامعتبر است! لطفاً از کیبورد انتخاب کنید.")
+        return SELECT_MONTH
+
+    context.user_data['month'] = month
+
+    reply_keyboard = [YEARS]
+    await update.message.reply_text(
+        "📅 لطفاً سال مورد نظر را انتخاب کنید:",
+        reply_markup=ReplyKeyboardMarkup(reply_keyboard, one_time_keyboard=True)
+    )
+    return SELECT_YEAR
+
+async def select_year(update: Update, context: ContextTypes.DEFAULT_TYPE) -> int:
+    year = update.message.text
+    if year not in YEARS:
+        await update.message.reply_text("⚠️ سال نامعتبر است! لطفاً از کیبورد انتخاب کنید.")
+        return SELECT_YEAR
+
+    context.user_data['year'] = year
+
     car_types = list(CAR_SALARIES.keys())
     reply_keyboard = [car_types[i:i+2] for i in range(0, len(car_types), 2)]
     await update.message.reply_text(
@@ -55,7 +91,7 @@ async def select_car(update: Update, context: ContextTypes.DEFAULT_TYPE) -> int:
     if car_type not in CAR_SALARIES:
         await update.message.reply_text("⚠️ نوع خودرو نامعتبر است! لطفاً از کیبورد انتخاب کنید.")
         return SELECT_CAR
-    
+
     context.user_data['car_type'] = car_type
     models = list(CAR_SALARIES[car_type].keys())
     reply_keyboard = [models[i:i+2] for i in range(0, len(models), 2)]
@@ -69,14 +105,14 @@ async def select_car(update: Update, context: ContextTypes.DEFAULT_TYPE) -> int:
 async def select_model(update: Update, context: ContextTypes.DEFAULT_TYPE) -> int:
     model = update.message.text
     car_type = context.user_data['car_type']
-    
+
     if model not in CAR_SALARIES[car_type]:
         await update.message.reply_text("⚠️ مدل خودرو نامعتبر است! لطفاً از کیبورد انتخاب کنید.")
         return SELECT_MODEL
-    
+
     context.user_data['model'] = model
     context.user_data['hourly_wage'] = CAR_SALARIES[car_type][model]
-    
+
     await update.message.reply_text(
         f"✅ اطلاعات خودرو:\n"
         f"• نوع: {car_type}\n"
@@ -91,7 +127,7 @@ async def get_missions(update: Update, context: ContextTypes.DEFAULT_TYPE) -> in
         if missions < 0:
             await update.message.reply_text("❌ تعداد ماموریت نمی‌تواند منفی باشد! دوباره وارد کنید:")
             return GET_MISSIONS
-            
+
         context.user_data['missions'] = missions
         await update.message.reply_text(
             "✅ لطفاً ساعت کارکرد عادی را وارد کنید (میتوانید از اعشار استفاده کنید، مثلاً 138.5):"
@@ -107,7 +143,7 @@ async def get_normal_hours(update: Update, context: ContextTypes.DEFAULT_TYPE) -
         if normal_hours < 0:
             await update.message.reply_text("❌ ساعت کار نمی‌تواند منفی باشد! دوباره وارد کنید:")
             return GET_NORMAL_HOURS
-            
+
         context.user_data['normal_hours'] = normal_hours
         await update.message.reply_text(
             "⏰ لطفاً تعداد ساعت‌های ماموریت ساعتی را وارد کنید (مثال: 20 یا 15.5):"
@@ -136,12 +172,12 @@ async def get_hourly_missions(update: Update, context: ContextTypes.DEFAULT_TYPE
         # مجموع
         total = mission_cost + normal_salary + hourly_mission_cost
 
-        # فرمت اعداد
+        # فرمت اعداد بدون جداکننده اما با فاصله
         def format_currency(amount):
-            return "{:,.0f}".format(amount).replace(",", "٬")
+            return f"{int(amount):,}".replace(",", " ")
 
         await update.message.reply_text(
-            f"📊 **نتایج محاسبات حقوق**\n\n"
+            f"📊 **نتایج محاسبات حقوق - {data['month']} {data['year']}**\n\n"
             f"🚗 **مشخصات خودرو:**\n"
             f"• نوع: {data['car_type']}\n"
             f"• مدل: {data['model']}\n"
@@ -154,7 +190,7 @@ async def get_hourly_missions(update: Update, context: ContextTypes.DEFAULT_TYPE
             f"• حقوق پایه: {format_currency(normal_salary)} ریال\n"
             f"• تعداد ماموریت ساعتی: {hourly_missions:.2f} ساعت\n"
             f"• هزینه ماموریت ساعتی: {format_currency(hourly_mission_cost)} ریال\n\n"
-            f"💰 **مجموع حقوق قابل پرداخت: {format_currency(total)} ریال**\n\n"
+            f"💰 مجموع حقوق قابل پرداخت: {format_currency(total)} ریال\n\n"
             "برای محاسبه مجدد /start را ارسال کنید."
         )
         return ConversationHandler.END
@@ -169,10 +205,12 @@ async def cancel(update: Update, context: ContextTypes.DEFAULT_TYPE) -> int:
 
 def main():
     application = Application.builder().token(TOKEN).build()
-    
+
     conv_handler = ConversationHandler(
         entry_points=[CommandHandler('start', start)],
         states={
+            SELECT_MONTH: [MessageHandler(filters.TEXT & ~filters.COMMAND, select_month)],
+            SELECT_YEAR: [MessageHandler(filters.TEXT & ~filters.COMMAND, select_year)],
             SELECT_CAR: [MessageHandler(filters.TEXT & ~filters.COMMAND, select_car)],
             SELECT_MODEL: [MessageHandler(filters.TEXT & ~filters.COMMAND, select_model)],
             GET_MISSIONS: [MessageHandler(filters.TEXT & ~filters.COMMAND, get_missions)],
@@ -181,9 +219,9 @@ def main():
         },
         fallbacks=[CommandHandler('cancel', cancel)]
     )
-    
+
     application.add_handler(conv_handler)
-    
+
     print("✅ ربات فعال شد و آماده دریافت درخواست‌هاست!")
     application.run_polling(
         drop_pending_updates=True,
