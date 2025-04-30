@@ -17,7 +17,6 @@ if not TOKEN:
 
 KM_PER_MISSION = 52  # کیلومتر هر ماموریت
 PER_KM = 18524  # نرخ هر کیلومتر (ریال)
-OVERTIME_MULTIPLIER = 1.4  # ضریب اضافه کار
 
 # ساختار داده‌ای حقوق خودروها (ریال)
 CAR_SALARIES = {
@@ -40,13 +39,11 @@ CAR_SALARIES = {
 }
 
 # مراحل گفتگو
-SELECT_CAR, SELECT_MODEL, GET_MISSIONS, GET_NORMAL_HOURS, GET_OVERTIME = range(5)
+SELECT_CAR, SELECT_MODEL, GET_MISSIONS, GET_NORMAL_HOURS, GET_HOURLY_MISSIONS = range(5)
 
 async def start(update: Update, context: ContextTypes.DEFAULT_TYPE) -> int:
-    """شروع مکالمه و انتخاب خودرو"""
     car_types = list(CAR_SALARIES.keys())
     reply_keyboard = [car_types[i:i+2] for i in range(0, len(car_types), 2)]
-    
     await update.message.reply_text(
         "🚗 لطفاً نوع خودرو را انتخاب کنید:",
         reply_markup=ReplyKeyboardMarkup(reply_keyboard, one_time_keyboard=True)
@@ -54,7 +51,6 @@ async def start(update: Update, context: ContextTypes.DEFAULT_TYPE) -> int:
     return SELECT_CAR
 
 async def select_car(update: Update, context: ContextTypes.DEFAULT_TYPE) -> int:
-    """انتخاب مدل خودرو"""
     car_type = update.message.text
     if car_type not in CAR_SALARIES:
         await update.message.reply_text("⚠️ نوع خودرو نامعتبر است! لطفاً از کیبورد انتخاب کنید.")
@@ -63,7 +59,6 @@ async def select_car(update: Update, context: ContextTypes.DEFAULT_TYPE) -> int:
     context.user_data['car_type'] = car_type
     models = list(CAR_SALARIES[car_type].keys())
     reply_keyboard = [models[i:i+2] for i in range(0, len(models), 2)]
-    
     await update.message.reply_text(
         f"🔧 خودرو انتخاب شده: {car_type}\n\n"
         "📅 لطفاً مدل خودرو را انتخاب کنید:",
@@ -72,7 +67,6 @@ async def select_car(update: Update, context: ContextTypes.DEFAULT_TYPE) -> int:
     return SELECT_MODEL
 
 async def select_model(update: Update, context: ContextTypes.DEFAULT_TYPE) -> int:
-    """دریافت تعداد ماموریت‌ها"""
     model = update.message.text
     car_type = context.user_data['car_type']
     
@@ -92,7 +86,6 @@ async def select_model(update: Update, context: ContextTypes.DEFAULT_TYPE) -> in
     return GET_MISSIONS
 
 async def get_missions(update: Update, context: ContextTypes.DEFAULT_TYPE) -> int:
-    """دریافت ساعت کار عادی"""
     try:
         missions = int(update.message.text)
         if missions < 0:
@@ -109,7 +102,6 @@ async def get_missions(update: Update, context: ContextTypes.DEFAULT_TYPE) -> in
         return GET_MISSIONS
 
 async def get_normal_hours(update: Update, context: ContextTypes.DEFAULT_TYPE) -> int:
-    """دریافت ساعت اضافه کار"""
     try:
         normal_hours = float(update.message.text)
         if normal_hours < 0:
@@ -118,39 +110,36 @@ async def get_normal_hours(update: Update, context: ContextTypes.DEFAULT_TYPE) -
             
         context.user_data['normal_hours'] = normal_hours
         await update.message.reply_text(
-            "✅ لطفاً ساعت اضافه کار را وارد کنید (میتوانید از اعشار استفاده کنید، مثلاً 45.75):"
+            "⏰ لطفاً تعداد ساعت‌های ماموریت ساعتی را وارد کنید (مثال: 20 یا 15.5):"
         )
-        return GET_OVERTIME
+        return GET_HOURLY_MISSIONS
     except ValueError:
         await update.message.reply_text("❌ لطفاً یک عدد وارد کنید (مثال: 138.5):")
         return GET_NORMAL_HOURS
 
-async def get_overtime(update: Update, context: ContextTypes.DEFAULT_TYPE) -> int:
-    """محاسبه و نمایش نتیجه نهایی"""
+async def get_hourly_missions(update: Update, context: ContextTypes.DEFAULT_TYPE) -> int:
     try:
-        overtime = float(update.message.text)
-        if overtime < 0:
-            await update.message.reply_text("❌ ساعت اضافه کار نمی‌تواند منفی باشد! دوباره وارد کنید:")
-            return GET_OVERTIME
-            
+        hourly_missions = float(update.message.text)
+        if hourly_missions < 0:
+            await update.message.reply_text("❌ مقدار وارد شده نمی‌تواند منفی باشد! دوباره وارد کنید:")
+            return GET_HOURLY_MISSIONS
+
         data = context.user_data
-        
-        # محاسبه هزینه ماموریت‌ها
+
+        # محاسبه ماموریت رشت
         mission_cost = data['missions'] * KM_PER_MISSION * PER_KM
-        
-        # محاسبه حقوق پایه
+
+        # حقوق سایر قسمت‌ها
         normal_salary = data['normal_hours'] * data['hourly_wage']
-        
-        # محاسبه اضافه کار
-        overtime_salary = overtime * data['hourly_wage'] * OVERTIME_MULTIPLIER
-        
-        # محاسبه مجموع
-        total = mission_cost + normal_salary + overtime_salary
-        
-        # فرمت‌بندی اعداد با جداکننده هزارگان
+        hourly_mission_cost = hourly_missions * data['hourly_wage']
+
+        # مجموع
+        total = mission_cost + normal_salary + hourly_mission_cost
+
+        # فرمت اعداد
         def format_currency(amount):
             return "{:,.0f}".format(amount).replace(",", "٬")
-        
+
         await update.message.reply_text(
             f"📊 **نتایج محاسبات حقوق**\n\n"
             f"🚗 **مشخصات خودرو:**\n"
@@ -158,28 +147,27 @@ async def get_overtime(update: Update, context: ContextTypes.DEFAULT_TYPE) -> in
             f"• مدل: {data['model']}\n"
             f"• حقوق ساعتی: {format_currency(data['hourly_wage'])} ریال\n\n"
             f"📝 **جزئیات محاسبه:**\n"
-            f"• تعداد ماموریت: {data['missions']} بار\n"
+            f"• تعداد ماموریت رشت: {data['missions']} بار\n"
             f"• کیلومتر هر ماموریت: {KM_PER_MISSION} کیلومتر\n"
-            f"• هزینه ماموریت: {format_currency(mission_cost)} ریال\n"
+            f"• هزینه ماموریت رشت: {format_currency(mission_cost)} ریال\n"
             f"• ساعت کار عادی: {data['normal_hours']:.2f} ساعت\n"
             f"• حقوق پایه: {format_currency(normal_salary)} ریال\n"
-            f"• ساعت اضافه کار: {overtime:.2f} ساعت\n"
-            f"• اضافه کار: {format_currency(overtime_salary)} ریال\n\n"
+            f"• تعداد ماموریت ساعتی: {hourly_missions:.2f} ساعت\n"
+            f"• هزینه ماموریت ساعتی: {format_currency(hourly_mission_cost)} ریال\n\n"
             f"💰 **مجموع حقوق قابل پرداخت: {format_currency(total)} ریال**\n\n"
             "برای محاسبه مجدد /start را ارسال کنید."
         )
         return ConversationHandler.END
+
     except ValueError:
-        await update.message.reply_text("❌ لطفاً یک عدد وارد کنید (مثال: 45.5):")
-        return GET_OVERTIME
+        await update.message.reply_text("❌ لطفاً یک عدد وارد کنید (مثال: 15.5):")
+        return GET_HOURLY_MISSIONS
 
 async def cancel(update: Update, context: ContextTypes.DEFAULT_TYPE) -> int:
-    """لغو عملیات"""
     await update.message.reply_text('عملیات لغو شد. برای شروع مجدد /start را بزنید.')
     return ConversationHandler.END
 
 def main():
-    """تنظیم و راه‌اندازی ربات"""
     application = Application.builder().token(TOKEN).build()
     
     conv_handler = ConversationHandler(
@@ -189,7 +177,7 @@ def main():
             SELECT_MODEL: [MessageHandler(filters.TEXT & ~filters.COMMAND, select_model)],
             GET_MISSIONS: [MessageHandler(filters.TEXT & ~filters.COMMAND, get_missions)],
             GET_NORMAL_HOURS: [MessageHandler(filters.TEXT & ~filters.COMMAND, get_normal_hours)],
-            GET_OVERTIME: [MessageHandler(filters.TEXT & ~filters.COMMAND, get_overtime)],
+            GET_HOURLY_MISSIONS: [MessageHandler(filters.TEXT & ~filters.COMMAND, get_hourly_missions)],
         },
         fallbacks=[CommandHandler('cancel', cancel)]
     )
