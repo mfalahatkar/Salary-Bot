@@ -1,5 +1,5 @@
 import os
-from telegram import Update, ReplyKeyboardMarkup
+from telegram import Update, ReplyKeyboardMarkup, ReplyKeyboardRemove
 from telegram.ext import (
     Application,
     CommandHandler,
@@ -16,8 +16,7 @@ if not TOKEN:
     exit(1)
 
 KM_PER_MISSION = 52  # کیلومتر هر ماموریت
-PER_KM = 12596  # قیمت جدید هر کیلومتر
-
+PER_KM = 12596  # قیمت هر کیلومتر (اصلاح شده)
 MONTHS = [
     "فروردین", "اردیبهشت", "خرداد", "تیر", "مرداد", "شهریور",
     "مهر", "آبان", "آذر", "دی", "بهمن", "اسفند"
@@ -45,7 +44,7 @@ CAR_SALARIES = {
 }
 
 # مراحل گفتگو
-SELECT_YEAR, SELECT_MONTH, SELECT_CAR, SELECT_MODEL, GET_MISSIONS, GET_NORMAL_HOURS, GET_HOURLY_MISSIONS = range(7)
+SELECT_YEAR, SELECT_MONTH, SELECT_CAR, SELECT_MODEL, GET_MISSIONS, GET_NORMAL_HOURS, GET_HOURLY_MISSIONS, SELECT_FINAL_ACTION = range(8)
 
 async def start(update: Update, context: ContextTypes.DEFAULT_TYPE) -> int:
     reply_keyboard = [YEARS]
@@ -116,7 +115,11 @@ async def select_model(update: Update, context: ContextTypes.DEFAULT_TYPE) -> in
     await update.message.reply_text(
         f"✅ اطلاعات خودرو:\n"
         f"• نوع: {car_type}\n"
-        f"• مدل: {model}\n\n"
+        f"• مدل: {model}\n",
+        reply_markup=ReplyKeyboardRemove()
+    )
+
+    await update.message.reply_text(
         "لطفاً تعداد ماموریت‌های رشت را وارد کنید (عدد صحیح):"
     )
     return GET_MISSIONS
@@ -191,16 +194,41 @@ async def get_hourly_missions(update: Update, context: ContextTypes.DEFAULT_TYPE
             f"• تعداد ماموریت ساعتی: {hourly_missions:.2f} ساعت\n"
             f"• هزینه ماموریت ساعتی: {format_currency(hourly_mission_cost)} ریال\n\n"
             f"💰 مجموع حقوق قابل پرداخت: {format_currency(total)} ریال\n\n"
-            "برای محاسبه مجدد /start را ارسال کنید."
+            "🟢 لطفاً یکی از گزینه‌های زیر را انتخاب کنید:"
         )
-        return ConversationHandler.END
+
+        reply_keyboard = [["شروع دوباره", "ریست ربات", "خروج"]]
+        await update.message.reply_text(
+            "انتخاب کنید:",
+            reply_markup=ReplyKeyboardMarkup(reply_keyboard, one_time_keyboard=True)
+        )
+        return SELECT_FINAL_ACTION
 
     except ValueError:
         await update.message.reply_text("❌ لطفاً یک عدد وارد کنید (مثال: 15.5):")
         return GET_HOURLY_MISSIONS
 
+async def handle_final_action(update: Update, context: ContextTypes.DEFAULT_TYPE) -> int:
+    action = update.message.text
+
+    if action == "شروع دوباره":
+        await update.message.reply_text("🔄 عملیات از ابتدا آغاز می‌شود.", reply_markup=ReplyKeyboardRemove())
+        return await start(update, context)
+    
+    elif action == "ریست ربات":
+        await update.message.reply_text("🔄 ربات ریست شد. برای شروع مجدد /start را بزنید.", reply_markup=ReplyKeyboardRemove())
+        return ConversationHandler.END
+    
+    elif action == "خروج":
+        await update.message.reply_text("👋 خروج انجام شد. برای شروع مجدد /start را بزنید.", reply_markup=ReplyKeyboardRemove())
+        return ConversationHandler.END
+    
+    else:
+        await update.message.reply_text("⚠️ گزینه نامعتبر است! لطفاً یکی از گزینه‌های موجود را انتخاب کنید.")
+        return SELECT_FINAL_ACTION
+
 async def cancel(update: Update, context: ContextTypes.DEFAULT_TYPE) -> int:
-    await update.message.reply_text('عملیات لغو شد. برای شروع مجدد /start را بزنید.')
+    await update.message.reply_text('عملیات لغو شد. برای شروع مجدد /start را بزنید.', reply_markup=ReplyKeyboardRemove())
     return ConversationHandler.END
 
 def main():
@@ -216,6 +244,7 @@ def main():
             GET_MISSIONS: [MessageHandler(filters.TEXT & ~filters.COMMAND, get_missions)],
             GET_NORMAL_HOURS: [MessageHandler(filters.TEXT & ~filters.COMMAND, get_normal_hours)],
             GET_HOURLY_MISSIONS: [MessageHandler(filters.TEXT & ~filters.COMMAND, get_hourly_missions)],
+            SELECT_FINAL_ACTION: [MessageHandler(filters.TEXT & ~filters.COMMAND, handle_final_action)]
         },
         fallbacks=[CommandHandler('cancel', cancel)]
     )
