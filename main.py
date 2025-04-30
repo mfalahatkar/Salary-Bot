@@ -45,24 +45,9 @@ CAR_SALARIES = {
 }
 
 # مراحل گفتگو
-SELECT_MONTH, SELECT_YEAR, SELECT_CAR, SELECT_MODEL, GET_MISSIONS, GET_NORMAL_HOURS, GET_HOURLY_MISSIONS = range(7)
+SELECT_YEAR, SELECT_MONTH, SELECT_CAR, SELECT_MODEL, GET_MISSIONS, GET_NORMAL_HOURS, GET_HOURLY_MISSIONS = range(7)
 
 async def start(update: Update, context: ContextTypes.DEFAULT_TYPE) -> int:
-    reply_keyboard = [MONTHS[i:i+3] for i in range(0, len(MONTHS), 3)]
-    await update.message.reply_text(
-        "📅 لطفاً ماه مورد نظر را انتخاب کنید:",
-        reply_markup=ReplyKeyboardMarkup(reply_keyboard, one_time_keyboard=True)
-    )
-    return SELECT_MONTH
-
-async def select_month(update: Update, context: ContextTypes.DEFAULT_TYPE) -> int:
-    month = update.message.text
-    if month not in MONTHS:
-        await update.message.reply_text("⚠️ ماه نامعتبر است! لطفاً از کیبورد انتخاب کنید.")
-        return SELECT_MONTH
-
-    context.user_data['month'] = month
-
     reply_keyboard = [YEARS]
     await update.message.reply_text(
         "📅 لطفاً سال مورد نظر را انتخاب کنید:",
@@ -77,6 +62,21 @@ async def select_year(update: Update, context: ContextTypes.DEFAULT_TYPE) -> int
         return SELECT_YEAR
 
     context.user_data['year'] = year
+
+    reply_keyboard = [MONTHS[i:i+3] for i in range(0, len(MONTHS), 3)]
+    await update.message.reply_text(
+        "📅 لطفاً ماه مورد نظر را انتخاب کنید:",
+        reply_markup=ReplyKeyboardMarkup(reply_keyboard, one_time_keyboard=True)
+    )
+    return SELECT_MONTH
+
+async def select_month(update: Update, context: ContextTypes.DEFAULT_TYPE) -> int:
+    month = update.message.text
+    if month not in MONTHS:
+        await update.message.reply_text("⚠️ ماه نامعتبر است! لطفاً از کیبورد انتخاب کنید.")
+        return SELECT_MONTH
+
+    context.user_data['month'] = month
 
     car_types = list(CAR_SALARIES.keys())
     reply_keyboard = [car_types[i:i+2] for i in range(0, len(car_types), 2)]
@@ -93,10 +93,10 @@ async def select_car(update: Update, context: ContextTypes.DEFAULT_TYPE) -> int:
         return SELECT_CAR
 
     context.user_data['car_type'] = car_type
+
     models = list(CAR_SALARIES[car_type].keys())
     reply_keyboard = [models[i:i+2] for i in range(0, len(models), 2)]
     await update.message.reply_text(
-        f"🔧 خودرو انتخاب شده: {car_type}\n\n"
         "📅 لطفاً مدل خودرو را انتخاب کنید:",
         reply_markup=ReplyKeyboardMarkup(reply_keyboard, one_time_keyboard=True)
     )
@@ -172,9 +172,9 @@ async def get_hourly_missions(update: Update, context: ContextTypes.DEFAULT_TYPE
         # مجموع
         total = mission_cost + normal_salary + hourly_mission_cost
 
-        # فرمت اعداد بدون جداکننده اما با فاصله
+        # فرمت اعداد با جداکننده سه‌رقمی
         def format_currency(amount):
-            return f"{int(amount):,}".replace(",", " ")
+            return "{:,.0f}".format(amount).replace(",", "٬")
 
         await update.message.reply_text(
             f"📊 **نتایج محاسبات حقوق - {data['month']} {data['year']}**\n\n"
@@ -209,8 +209,8 @@ def main():
     conv_handler = ConversationHandler(
         entry_points=[CommandHandler('start', start)],
         states={
-            SELECT_MONTH: [MessageHandler(filters.TEXT & ~filters.COMMAND, select_month)],
             SELECT_YEAR: [MessageHandler(filters.TEXT & ~filters.COMMAND, select_year)],
+            SELECT_MONTH: [MessageHandler(filters.TEXT & ~filters.COMMAND, select_month)],
             SELECT_CAR: [MessageHandler(filters.TEXT & ~filters.COMMAND, select_car)],
             SELECT_MODEL: [MessageHandler(filters.TEXT & ~filters.COMMAND, select_model)],
             GET_MISSIONS: [MessageHandler(filters.TEXT & ~filters.COMMAND, get_missions)],
